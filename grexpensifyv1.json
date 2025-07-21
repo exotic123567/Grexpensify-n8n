@@ -1,0 +1,854 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1840,
+        160
+      ],
+      "id": "a8cda0a6-7f5b-4cee-9f2e-24c0abbf47ec",
+      "name": "Telegram Trigger",
+      "webhookId": "3448e530-0e84-4142-9a83-58080a77067b",
+      "credentials": {
+        "telegramApi": {
+          "id": "R17I6ry2fM0ehqgd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5ea07736-8aa4-477c-a5fb-484ff3bb8d21",
+              "leftValue": "={{ !!$json[\"message\"][\"photo\"] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1664,
+        160
+      ],
+      "id": "b87b5ec1-0819-49e7-88e3-93e352f9307d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json[\"message\"] }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=> You are an API-style, JSON-only parser.\n> Your task: convert any natural-language or OCR text about a group expense into **four structured JSON objects** whose keys match the column headers in our Google-Sheets database (tabs = `Expenses`, `Splits`, `Users`, `Payments`).\n> Output must be valid JSON with no comments or extra keys.\n> Never wrap your JSON in markdown, code-blocks, or prose.\n> AND DO NOT ADD ANY newline strings in your output (/n)\n\n1 · `Expenses` object (required)\n\nReturn one object with exactly these keys **in this order**:\n\n| Key              | Type     | Required | Rules & examples                                                                                                             |\n| ---------------- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |\n| `ExpenseID`      | `string` | yes      | Leave `null` – our automation will insert a UUID.                                                                            |\n| `Date`           | `string` | yes      | ISO-8601: `\"YYYY-MM-DDTHH:mm:ssZ\"`.  If the user supplies a date or day-word (“yesterday”) convert it; else use current UTC. |\n| `Description`    | `string` | yes      | Short free text, ≤ 120 chars.                                                                                                |\n| `Category`       | `string` | yes      | One of: `\"Food\"`, `\"Transport\"`, `\"Lodging\"`, `\"Activity\"`, `\"Shopping\"`, `\"Other\"`.                                         |\n| `SubCategory`    | `string` | optional | e.g. `Dinner`, `Cab`, `Hotel`, `Museum`, etc.  Use empty string if none.                                                     |\n| `Location`       | `string` | optional | City or venue: `\"Sealdah\"`.  Empty string if unknown.                                                                        |\n| `LocationFrom`   | `string` | optional | For transport: departure hub.  Else empty.                                                                                   |\n| `LocationTo`     | `string` | optional | For transport: arrival hub.  Else empty.                                                                                     |\n| `Amount`         | `number` | yes      | Numeric only, currency = INR.  Don’t include commas or `₹`.                                                                  |\n| `PaidByUserID`   | `string` | yes      | 10-12 digit phone/UPI ID from the Users tab.  If user gives only a name, look it up in `Users.name`.                         |\n| `PaidByUserName` | `string` | yes      | Human name matching the above ID.                                                                                            |\n\n2 · `Splits` array (required)\n\nGenerate one object per person who should pay (can be empty if the payer is the only participant).\nEach object must contain:\n\n| Key            | Type     | Rules                                                                                         |\n| -------------- | -------- | --------------------------------------------------------------------------------------------- |\n| `SplitID`      | `string` | Leave `null`; automation fills UUID.                                                          |\n| `ExpenseID`    | `string` | Copy the `ExpenseID` value (even though it is `null`).                                        |\n| `OwedByUserID` | `string` | 10-12 digit ID from Users tab.                                                                |\n| `ShareAmount`  | `number` | Positive share each owes.  Default: equal split among all participants *including the payer*. |\n\nIf the instruction is “split among others only,” exclude the payer from the Shares.\n\n3 · `Users` array (optional)\n\nCreate only if the instruction introduces a brand-new traveller who is not already in the Users tab.\nReturn one object per new user:\n\n| Key              | Type     | Value                                |\n| ---------------- | -------- | ------------------------------------ |\n| `UserID`         | `string` | Leave `null`; our logic will assign. |\n| `Email`          | `string` | Empty string if unknown.             |\n| `Name`           | `string` | Proper-case given name.              |\n| `Role`           | `string` | `\"member\"` by default.               |\n| `HashedPassword` | `string` | Empty string.                        |\n\n4 · `Payments` array (optional)\n\nReturn only if the user message explicitly describes a settlement like “Rudy paid Riddhi ₹200 to settle.”\nEach object needs:\n\n| Key              | Type     | Rules                                |\n| ---------------- | -------- | ------------------------------------ |\n| `PaymentID`      | `string` | Leave `null`; automation fills UUID. |\n| `Date`           | `string` | ISO-8601 (see above).                |\n| `PaidByUserID`   | `string` | From Users tab.                      |\n| `PaidToUserID`   | `string` | From Users tab.                      |\n| `Amount`         | `number` | Positive INR.                        |\n| `Note`           | `string` | Short note or empty string.          |\n| `PaidByUserName` | `string` | Name look-up.                        |\n| `PaidToUserName` | `string` | Name look-up.                        |\n\nFormatting rules (apply to the full response)\n\n1. Return a single top-level JSON object with keys:\n   `expenses`, `splits`, `users`, `payments`\n   – each holding an array (even if empty).\n2. Keep numbers as numbers (no quotes).\n3. Use `null` not empty string for any auto-generated ID fields.\n4. Never add keys that are not listed above.\n5. Do not echo the user’s prompt; output *only* the JSON.\n\nTiny example\n\n```json\n{\n  \"expenses\": [\n    {\n      \"ExpenseID\": null,\n      \"Date\": \"2025-06-28T15:55:00Z\",\n      \"Description\": \"Train ticket Sealdah → NJP\",\n      \"Category\": \"Transport\",\n      \"SubCategory\": \"Train\",\n      \"Location\": \"Sealdah\",\n      \"LocationFrom\": \"Sealdah\",\n      \"LocationTo\": \"New Jalpaiguri\",\n      \"Amount\": 990,\n      \"PaidByUserID\": \"1008812970340\",\n      \"PaidByUserName\": \"Sourik\"\n    }\n  ],\n  \"splits\": [\n    { \"SplitID\": null, \"ExpenseID\": null, \"OwedByUserID\": \"1037188560388\", \"ShareAmount\": 198 },\n    { \"SplitID\": null, \"ExpenseID\": null, \"OwedByUserID\": \"1041558947875\", \"ShareAmount\": 198 },\n    { \"SplitID\": null, \"ExpenseID\": null, \"OwedByUserID\": \"1165938269232\", \"ShareAmount\": 198 },\n    { \"SplitID\": null, \"ExpenseID\": null, \"OwedByUserID\": \"1004575898965\", \"ShareAmount\": 198 }\n  ],\n  \"users\": [],\n  \"payments\": []\n}\n```\n\n> Remember: produce nothing but JSON. If the user’s message lacks required info (e.g., amount) return the keys with `null` or empty string, NOT an error message. "
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "={{ $json[\"message\"][\"text\"] }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -1344,
+        192
+      ],
+      "id": "92d668aa-1384-47dd-bd1e-af56200eb578",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -1328,
+        384
+      ],
+      "id": "12ea49c6-79f4-4061-98ad-c37ac893e1ef",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "VMAN7voFH3inrSW2",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "16d8c8e6-6b9b-4af9-98b1-5ff469e345ae",
+              "name": "ExpenseID",
+              "value": "={{ $json.ExpenseID }}",
+              "type": "string"
+            },
+            {
+              "id": "f40d4aa6-f6ee-4637-af3b-73606f5c05de",
+              "name": "Date",
+              "value": "={{ $json.expenses[0].Date }}",
+              "type": "string"
+            },
+            {
+              "id": "39933126-375a-49f1-8d09-36c4ca2c3869",
+              "name": "Description",
+              "value": "={{ $json.expenses[0].Description }}",
+              "type": "string"
+            },
+            {
+              "id": "5f6bc224-7f86-4178-aafa-ebbd242fbff8",
+              "name": "Category",
+              "value": "={{ $json.expenses[0].Category }}",
+              "type": "string"
+            },
+            {
+              "id": "5beb23c9-6b33-40ab-851f-447b1c4228c0",
+              "name": "SubCategory",
+              "value": "={{ $json.expenses[0].SubCategory }}",
+              "type": "string"
+            },
+            {
+              "id": "fab2e12a-aefa-4821-87f8-c8df9345bfee",
+              "name": "Location",
+              "value": "={{ $json.expenses[0].Location }}",
+              "type": "string"
+            },
+            {
+              "id": "1a865cac-05ed-4b43-bf93-58613b3705f8",
+              "name": "LocationFrom",
+              "value": "={{ $json.expenses[0].LocationFrom }}",
+              "type": "string"
+            },
+            {
+              "id": "3ac8ba9b-319e-4d79-9c4c-7daac23070e6",
+              "name": "LocationTo",
+              "value": "={{ $json.expenses[0].LocationTo }}",
+              "type": "string"
+            },
+            {
+              "id": "55853287-001b-4957-8e07-d944ba72ac37",
+              "name": "Amount",
+              "value": "={{ $json.expenses[0].Amount }}",
+              "type": "string"
+            },
+            {
+              "id": "4e495f58-3a55-4ed9-85b8-4f95a022ca6a",
+              "name": "PaidByUserID",
+              "value": "={{ $json.expenses[0].PaidByUserID }}",
+              "type": "string"
+            },
+            {
+              "id": "fe3e0401-7685-4419-af23-6d5c2f64d742",
+              "name": "PaidByUserName",
+              "value": "={{ $json.expenses[0].PaidByUserName }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -704,
+        320
+      ],
+      "id": "546307c5-10a6-46c7-97f0-c18bd72b560a",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse the JSON string that sits in $json.text\nconst obj = JSON.parse($json.text);\n\n// Ultra-simple unique-ish ID: epoch-time + random suffix\nobj.ExpenseID = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);\n\n// Return one clean item\nreturn obj;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -944,
+        320
+      ],
+      "id": "0f7532fd-8739-4b8a-8683-81990d1afdc1",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co",
+          "mode": "list",
+          "cachedResultName": "Trip Expenses n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Expenses",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ExpenseID": "={{ $json.ExpenseID }}",
+            "Date": "={{ $json.Date }}",
+            "Description": "={{ $json.Description }}",
+            "Category": "={{ $json.Category }}",
+            "SubCategory": "={{ $json.SubCategory }}",
+            "Location": "={{ $json.Location }}",
+            "LocationFrom": "={{ $json.LocationFrom }}",
+            "LocationTo": "={{ $json.LocationTo }}",
+            "Amount": "={{ $json.Amount }}",
+            "PaidByUserID": "={{ $json.PaidByUserID }}",
+            "PaidByUserName": "={{ $json.PaidByUserName }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ExpenseID",
+              "displayName": "ExpenseID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Description",
+              "displayName": "Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SubCategory",
+              "displayName": "SubCategory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Location",
+              "displayName": "Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LocationFrom",
+              "displayName": "LocationFrom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LocationTo",
+              "displayName": "LocationTo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount",
+              "displayName": "Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PaidByUserID",
+              "displayName": "PaidByUserID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PaidByUserName",
+              "displayName": "PaidByUserName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        -480,
+        304
+      ],
+      "id": "091ed0e1-1a6c-464e-8e39-471d1f9d19d6",
+      "name": "Append row in sheet"
+    },
+    {
+      "parameters": {
+        "jsCode": "// group IDs in the trip\nconst friends = [\n  \"1008812970340\", // Jesse\n  \"1037188560388\", // James\n  \"1041558947875\", // Marcus\n  \"1165938269232\", // Bob\n  \"1004575898965\"  // Elon\n];\n\nconst payer = $input.first().json.PaidByUserID;\nconst share = Number($input.first().json.Amount) / friends.length;\n\n// build one item per debtor\nreturn friends\n  .filter(u => u !== payer)\n  .map(u => ({\n    json: {\n      SplitID: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),\n      ExpenseID: $input.first().json.ExpenseID,\n      OwedByUserID: u,\n      ShareAmount: share\n    }\n  }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        320
+      ],
+      "id": "6047696a-58d9-42f4-b390-e77086949a5d",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co",
+          "mode": "list",
+          "cachedResultName": "Trip Expenses n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 642419112,
+          "mode": "list",
+          "cachedResultName": "Splits",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co/edit#gid=642419112"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "SplitID": "={{ $json.SplitID }}",
+            "ExpenseID": "={{ $json.ExpenseID }}",
+            "OwedByUserID": "={{ $json.OwedByUserID }}",
+            "ShareAmount": "={{ $json.ShareAmount }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "SplitID",
+              "displayName": "SplitID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ExpenseID",
+              "displayName": "ExpenseID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OwedByUserID",
+              "displayName": "OwedByUserID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ShareAmount",
+              "displayName": "ShareAmount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        0,
+        320
+      ],
+      "id": "cf6a4135-3427-49e8-b3f9-e2d22f11366e",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Q9HafyyxaQUOLp5e",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Append row in sheet').item.json.PaidByUserID }}",
+        "text": "=✅ Logged ₹{{ $('Append row in sheet').item.json.Amount }} – “{{ $('Append row in sheet').item.json.Description }}”. Each friend owes ₹{{ $items()[0].json.ShareAmount }}.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        320
+      ],
+      "id": "fe4526d1-e25c-4e99-abaa-9fbbfbc6dfa7",
+      "name": "Send a text message",
+      "webhookId": "9ae69bfd-0b33-4335-9ecc-914074ae1069",
+      "credentials": {
+        "telegramApi": {
+          "id": "R17I6ry2fM0ehqgd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6f4f8302-612d-4e93-9204-77955f47a5a0",
+              "leftValue": "={{ $json.payments }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -800,
+        112
+      ],
+      "id": "c9956fc0-d783-4006-9e9c-ebc2f2d7bd9e",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Mode: Run Once for All Items\n * Input : one item whose json.payments is an ARRAY (≥ 1 objects)\n * Output: one item per payment, enriched with PaymentID & PaidToUserID\n */\n\n/* ─ STEP 0 ─ mini Users lookup table (replace with real Sheet data) */\nconst users = [\n  { id: \"1008812970340\", name: \"Jesse\"   },\n  { id: \"1037188560388\", name: \"James\"   },\n  { id: \"1041558947875\", name: \"Marcus\"  },\n  { id: \"1165938269232\", name: \"Bob\"   },\n  { id: \"1004575898965\", name: \"Elon\" }\n];\n\n/* helper → find user-id by case-insensitive name */\nconst idFromName = (name) => {\n  const hit = users.find(u => u.name?.toLowerCase() === String(name).toLowerCase());\n  return hit?.id || null;\n};\n\n/* turn payments[] into individual output items */\nreturn $input.first().json.payments.map(pRaw => {\n  const p = { ...pRaw };           // clone so we don’t mutate source\n\n  /* 1️⃣  Generate PaymentID if null / empty */\n  if (!p.PaymentID || p.PaymentID === 'null') {\n    /** @type {any} */ (p).PaymentID =\n      Date.now().toString(36) + Math.random().toString(36).slice(2, 8);\n  }\n\n  /* 2️⃣  Fill PaidToUserID from recipient name if missing */\n  if ((!p.PaidToUserID || p.PaidToUserID === 'null') && p.PaidToUserName) {\n    /** @type {any} */ (p).PaidToUserID = idFromName(p.PaidToUserName);\n  }\n\n  return { json: p };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        80
+      ],
+      "id": "69265f56-9906-4c76-9c4e-f5951f7d7947",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co",
+          "mode": "list",
+          "cachedResultName": "Trip Expenses n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1132835930,
+          "mode": "list",
+          "cachedResultName": "Payments",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Fresouwy-VfYCpdgPtRbsLrgXXlCm-y5ZR7xwps_7Co/edit#gid=1132835930"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "PaymentID": "={{ $json.PaymentID }}",
+            "Date": "={{ $json.Date }}",
+            "PaidByUserID": "={{ $json.PaidByUserID }}",
+            "PaidToUserID": "={{ $json.PaidToUserID }}",
+            "Amount": "={{ $json.Amount }}",
+            "Note": "={{ $json.Note }}",
+            "PaidByUserName": "={{ $json.PaidByUserName }}",
+            "PaidToUserName": "={{ $json.PaidToUserName }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "PaymentID",
+              "displayName": "PaymentID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PaidByUserID",
+              "displayName": "PaidByUserID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PaidToUserID",
+              "displayName": "PaidToUserID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount",
+              "displayName": "Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Note",
+              "displayName": "Note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PaidByUserName",
+              "displayName": "PaidByUserName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PaidToUserName",
+              "displayName": "PaidToUserName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        -256,
+        80
+      ],
+      "id": "0b080f54-8d39-4d6c-bd4b-3859e2244529",
+      "name": "Append row in sheet2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Q9HafyyxaQUOLp5e",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "=💸 Payment recorded!\n\n📅 {{ $('Code').item.json.expenses[0].Date }}\n👤 You paid {{ $('Append row in sheet2').item.json.PaidToUserName }}\n₹{{ $('Append row in sheet2').item.json.Amount }} for \"{{ $('Append row in sheet2').item.json.Note || 'settlement' }}\"\n\nID #{{ $('Append row in sheet2').item.json.PaymentID }}\n",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "605d6249-2ca4-458d-a0ad-57557e70af04",
+      "name": "Send a text message1",
+      "webhookId": "9ae69bfd-0b33-4335-9ecc-914074ae1069",
+      "credentials": {
+        "telegramApi": {
+          "id": "R17I6ry2fM0ehqgd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a661ac7e-bfc9-4b75-8676-ba7b34f85d02",
+              "leftValue": "={{ $json.expenses }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -848,
+        592
+      ],
+      "id": "0983a7c1-6e12-4290-96b8-a110dbfa48c0",
+      "name": "If2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet2": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "",
+  "meta": {
+    "instanceId": "fa28d22ad91973b59aae7fafbc994d1ea9e3dc93cebdb443938fc580270ae98a"
+  },
+  "tags": []
+}
