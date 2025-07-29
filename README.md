@@ -1,7 +1,7 @@
 # Grexpensify-n8n
 An n8n workflow that track's group's expenses via Telegram Bot automation using LLM and Google Sheets.
 
-This is sn n8n workflow that automates a model group expense tracking mobile application into a telegram bot. Here's what it does :
+This is an n8n workflow that automates a model group expense tracking mobile application into a telegram bot. Here's what it does :
 
 1. Listens for a telegram message from the Telegram bot that I made: If an account hits the Telegram bot with  some message regarding trip expenses (Like adding expense, splitting expense, settling past payments  - with a group) - the telegram message triggers the entire Automation.
 2. I use Google sheets as a simple pseudo database here, where the group's details are kept along with trip expenses.
